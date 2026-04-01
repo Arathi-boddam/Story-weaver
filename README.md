@@ -86,3 +86,10 @@ At first, user additions were often being appended to the end of the story inste
 ## What I Would Improve Next With Another Day of Work
 
 With another day, I would improve the structured memory system beyond just passing the full story each time. I would add a dedicated story-state layer that tracks characters, locations, unresolved plot threads, and recent events separately from the raw narrative text. That would make long stories more consistent and reduce drift over multiple turns. I would also improve the UI further by polishing the voice experience and making the story controls feel more interactive and visual.
+
+## Demo
+
+A short walkthrough of the app is available here:
+
+[Watch the demo on Google Drive](https://drive.google.com/file/d/1bYYbEuaXvjmuR6aJxdD03Xd1Ah6jlQyt/view?usp=sharing)
+

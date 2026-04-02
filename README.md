@@ -91,5 +91,5 @@ With another day, I would improve the structured memory system beyond just passi
 
 A short walkthrough of the app is available here:
 
-[Watch the demo on Google Drive](https://drive.google.com/file/d/1bYYbEuaXvjmuR6aJxdD03Xd1Ah6jlQyt/view?usp=sharing)
+[Watch the demo on Google Drive](https://drive.google.com/drive/folders/1IpK_oyITfhgvC2NeBRx7FIB50aZwG2Gz?usp=sharing)
 

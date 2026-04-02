@@ -1,6 +1,7 @@
 import streamlit as st
 from difflib import SequenceMatcher
 from html import escape
+import hashlib
 import io
 import re
 import speech_recognition as sr
@@ -275,7 +276,6 @@ def transcribe_audio(uploaded_audio):
 
 def render_voice_field(field_key, label, widget_type="text_area", height=None):
     st.markdown(f"**{label}**")
-
     
     if widget_type == "text_input":
         st.text_input(label, key=field_key, label_visibility="collapsed")
@@ -292,9 +292,17 @@ def render_voice_field(field_key, label, widget_type="text_area", height=None):
         )
 
         if voice_audio is not None:
+            audio_bytes = voice_audio.getvalue()
+            audio_signature = hashlib.sha256(audio_bytes).hexdigest()
+            last_signature_key = f"{field_key}_last_audio_signature"
+
+            if st.session_state.get(last_signature_key) == audio_signature:
+                return
+
             transcript, voice_error = transcribe_audio(voice_audio)
 
             if voice_error:
+                st.session_state[last_signature_key] = audio_signature
                 st.session_state.error_message = voice_error
 
             elif transcript:
@@ -306,6 +314,7 @@ def render_voice_field(field_key, label, widget_type="text_area", height=None):
                 else:
                     st.session_state[pending_key] = transcript
 
+                st.session_state[last_signature_key] = audio_signature
                 st.session_state.error_message = None
                 st.rerun()
 
@@ -374,18 +383,30 @@ if "hook_input" not in st.session_state:
     st.session_state.hook_input = ""
 if "user_input_text" not in st.session_state:
     st.session_state.user_input_text = ""
+if "clear_user_input_text" not in st.session_state:
+    st.session_state.clear_user_input_text = False
 if "title_input_pending_voice" not in st.session_state:
     st.session_state.title_input_pending_voice = None
 if "hook_input_pending_voice" not in st.session_state:
     st.session_state.hook_input_pending_voice = None
 if "user_input_text_pending_voice" not in st.session_state:
     st.session_state.user_input_text_pending_voice = None
+if "title_input_last_audio_signature" not in st.session_state:
+    st.session_state.title_input_last_audio_signature = None
+if "hook_input_last_audio_signature" not in st.session_state:
+    st.session_state.hook_input_last_audio_signature = None
+if "user_input_text_last_audio_signature" not in st.session_state:
+    st.session_state.user_input_text_last_audio_signature = None
 
 for field_key in ["title_input", "hook_input", "user_input_text"]:
     pending_key = f"{field_key}_pending_voice"
     if st.session_state.get(pending_key) is not None:
         st.session_state[field_key] = st.session_state[pending_key]
         st.session_state[pending_key] = None
+
+if st.session_state.clear_user_input_text:
+    st.session_state.user_input_text = ""
+    st.session_state.clear_user_input_text = False
 
 
 def consume_control_action():
@@ -585,7 +606,7 @@ else:
                 updated = _apply_fallback_highlight(updated, user_input)
                 st.session_state.story = [{"type": "ai", "text": updated, "action": action_type}]
                 st.session_state.error_message = None
-                st.session_state.user_input_text = ""
+                st.session_state.clear_user_input_text = True
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 

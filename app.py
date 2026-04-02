@@ -255,6 +255,45 @@ def is_llm_error(response_text):
     return isinstance(response_text, str) and response_text.startswith("Error:")
 
 
+def snapshot_story_state():
+    return {
+        "story": [dict(item) for item in st.session_state.story],
+        "genre": st.session_state.get("genre"),
+        "choices": st.session_state.get("choices"),
+        "control_action": st.session_state.get("control_action"),
+        "current_control_type": st.session_state.get("current_control_type"),
+        "user_input_text": st.session_state.get("user_input_text", ""),
+    }
+
+
+def push_story_history():
+    st.session_state.story_history.append(snapshot_story_state())
+
+
+def undo_last_ai_turn():
+    if not st.session_state.story_history:
+        return
+
+    previous = st.session_state.story_history.pop()
+    st.session_state.story = previous["story"]
+    if previous["genre"] is not None:
+        st.session_state.genre = previous["genre"]
+    if previous["choices"] is None:
+        st.session_state.pop("choices", None)
+    else:
+        st.session_state.choices = previous["choices"]
+    if previous["control_action"] is None:
+        st.session_state.pop("control_action", None)
+    else:
+        st.session_state.control_action = previous["control_action"]
+    if previous["current_control_type"] is None:
+        st.session_state.pop("current_control_type", None)
+    else:
+        st.session_state.current_control_type = previous["current_control_type"]
+    st.session_state.user_input_text = previous["user_input_text"]
+    st.session_state.error_message = None
+
+
 def transcribe_audio(uploaded_audio):
     if uploaded_audio is None:
         return None, None
@@ -377,6 +416,8 @@ if "story" not in st.session_state:
     st.session_state.started = False
 if "error_message" not in st.session_state:
     st.session_state.error_message = None
+if "story_history" not in st.session_state:
+    st.session_state.story_history = []
 if "title_input" not in st.session_state:
     st.session_state.title_input = ""
 if "hook_input" not in st.session_state:
@@ -474,6 +515,7 @@ if not st.session_state.started:
                     st.session_state.error_message = f"Start Story failed. {response}"
                     st.rerun()
 
+                st.session_state.story_history = []
                 st.session_state.story = [{"type": "ai", "text": response, "action": "ai"}]
                 st.session_state.genre = genre
                 st.session_state.started = True
@@ -540,11 +582,14 @@ else:
         if st.button("🎭 Genre Remix"):
             with st.spinner("🔀 Remixing genre..."):
                 full_story = get_story_text()
+                push_story_history()
                 remixed, new_genre = remix_genre(full_story, st.session_state.genre, temperature)
                 if not is_llm_error(remixed):
                     st.session_state.story = [{"type": "ai", "text": remixed, "action": "ai"}]
                     st.session_state.genre = new_genre
                     st.rerun()
+                if st.session_state.story_history:
+                    st.session_state.story_history.pop()
 
     with colB:
         if st.button("🖼️ Visualize Scene"):
@@ -554,8 +599,8 @@ else:
 
     with colC:
         if st.button("↩️ Undo Last Turn"):
-            if len(st.session_state.story) > 1:
-                st.session_state.story.pop()
+            if st.session_state.story_history:
+                undo_last_ai_turn()
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -580,6 +625,7 @@ else:
             with st.spinner("🔮 Rewriting timeline..."):
                 previous_story = "\n".join([s["text"] for s in st.session_state.story])
                 action_type = st.session_state.get("current_control_type", "user")
+                push_story_history()
                 control_action = consume_control_action()
                 updated = rewrite_story_with_user_input(
                     st.session_state.story,
@@ -600,6 +646,8 @@ else:
                         control_action,
                     )
                     if is_llm_error(updated):
+                        if st.session_state.story_history:
+                            st.session_state.story_history.pop()
                         st.session_state.error_message = f"Add My Part failed. {updated}"
                         st.rerun()
                 updated = _inject_diff_highlights(previous_story, updated)
@@ -629,11 +677,14 @@ else:
                     full_story + "\n" + extra_instruction
                 )
 
+                push_story_history()
                 response = call_llm(prompt, temperature)
                 if is_llm_error(response):
                     st.warning("Retrying...")
                     response = call_llm(prompt, temperature)
                     if is_llm_error(response):
+                        if st.session_state.story_history:
+                            st.session_state.story_history.pop()
                         st.session_state.error_message = f"Continue with AI failed. {response}"
                         st.rerun()
 
@@ -649,6 +700,7 @@ else:
     with col2:
         if st.button("🔀 Give Me Choices"):
             with st.spinner("⚡ Generating possibilities..."):
+                push_story_history()
                 choices = generate_structured_choices(
                     st.session_state.story,
                     st.session_state.genre,
@@ -664,6 +716,8 @@ else:
                         st.session_state.get("control_action"),
                     )
                     if is_llm_error(choices):
+                        if st.session_state.story_history:
+                            st.session_state.story_history.pop()
                         st.session_state.error_message = f"Give Me Choices failed. {choices}"
                         st.rerun()
                 st.session_state.choices = choices
@@ -678,6 +732,7 @@ else:
                 if st.button(selected, key=f"choice_{index}"):
                     with st.spinner("🧩 Rewriting with your choice..."):
                         previous_story = "\n".join([s["text"] for s in st.session_state.story])
+                        push_story_history()
                         control_action = consume_control_action()
                         updated = rewrite_story_with_choice(
                             st.session_state.story,
@@ -698,6 +753,8 @@ else:
                                 control_action,
                             )
                             if is_llm_error(updated):
+                                if st.session_state.story_history:
+                                    st.session_state.story_history.pop()
                                 st.session_state.error_message = f"Continue with Choice failed. {updated}"
                                 st.rerun()
 
